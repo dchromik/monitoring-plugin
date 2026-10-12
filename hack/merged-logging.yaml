@@ -1,0 +1,16 @@
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: monitoring
+  annotations:
+    observability.openshift.io/ui-plugin-experimental-logging: "true"
+spec:
+  type: Monitoring
+  logging:
+    lokiStack:
+      name: logging-loki
+      namespace: openshift-logging
+    logsLimit: 100
+    timeout: 30s
+    schema: select
+    showTimezoneSelector: true

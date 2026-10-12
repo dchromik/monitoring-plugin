@@ -3,17 +3,21 @@ name: monitoring-plugin
 
 vars:
   PLUGIN:
-    question: "Which deployment do you want to develop? (mp = monitoring-plugin/CMO, mcp = monitoring-console-plugin/COO)"
+    question: "Which deployment do you want to develop? (mp = monitoring-plugin/CMO, mcp = monitoring-console-plugin/COO, mcp-logging = opt-in logging)"
     default: mp
     noCache: true
     options:
       - mp
       - mcp
+      - mcp-logging
 
 pipelines:
   dev:
     run: |-
-      if [ "${PLUGIN}" = "mcp" ]; then
+      if [ "${PLUGIN}" = "mcp-logging" ]; then
+        ./hack/logging-devspace.py setup
+        start_dev app-mcp-logging
+      elif [ "${PLUGIN}" = "mcp" ]; then
         echo "==> Installing COO (if not already present)..."
         ./hack/install-coo.sh
         echo "==> Applying UIPlugin CR with all features enabled..."
@@ -29,8 +33,13 @@ pipelines:
 
   purge:
     run: |-
+      if [ "${PLUGIN}" = "mcp-logging" ]; then
+        ./hack/logging-devspace.py check-context
+      fi
       stop_dev --all
-      if [ "${PLUGIN}" = "mp" ]; then
+      if [ "${PLUGIN}" = "mcp-logging" ]; then
+        ./hack/logging-devspace.py cleanup
+      elif [ "${PLUGIN}" = "mp" ]; then
         ./hack/scale-up-cmo.sh
       else
         ./hack/scale-up-coo.sh
@@ -73,5 +82,30 @@ dev:
     command: ["sh", "-c"]
     args:
       - until test -f /opt/app-root/web/dist/plugin-manifest.json; do sleep 1; done; exec make start-devspace-mcp-backend
+    ssh:
+      enabled: true
+
+  app-mcp-logging:
+    namespace: openshift-cluster-observability-operator
+    labelSelector:
+      app.kubernetes.io/instance: monitoring
+      app.kubernetes.io/managed-by: observability-operator
+    devImage: quay.io/openshift-observability-ui/monitoring-plugin:devspace
+    patches:
+      - op: replace
+        path: spec.containers[0].imagePullPolicy
+        value: Always
+    sync:
+      - path: ./Makefile:/opt/app-root/logging-make/Makefile
+        file: true
+      - path: ./.devspace/logging:/opt/app-root/logging-config
+      - path: ./web/dist:/opt/app-root/web/dist
+        startContainer: true
+      - path: ./cmd:/opt/app-root/cmd
+      - path: ./pkg:/opt/app-root/pkg
+      - path: ./config:/opt/app-root/config
+    command: ["sh", "-c"]
+    args:
+      - until test -f /opt/app-root/web/dist/plugin-manifest.json && test -f /opt/app-root/logging-make/Makefile && test -f /opt/app-root/logging-config/features && { test -f /opt/app-root/logging-config/config.yaml || test -f /etc/plugin/config/config.yaml; }; do sleep 1; done; exec make -f /opt/app-root/logging-make/Makefile start-devspace-logging-backend
     ssh:
       enabled: true

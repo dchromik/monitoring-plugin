@@ -213,3 +213,8 @@ curl "http://localhost:9090/api/v1/query?query=up"
 ```
 
 Adjust Perses local instance http://localhost:8080/ to use the a proxy to http://localhost:9090/ instead of http://demo.prometheus.io.
+
+### Opt-in logging development
+
+The merged logging feature is disabled by default. See [logging development](docs/logging-development.md)
+for the `mcp-logging` DevSpace mode, cleanup, tests and maintenance handoff.

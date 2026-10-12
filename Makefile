@@ -137,3 +137,14 @@ podman-cross-build-push: podman-cross-build
 .PHONY: test-translations
 test-translations:
 	./scripts/test-translations.sh
+
+# Explicit opt-in; ordinary MCP development continues to omit logging.
+# The plugin config comes from the local LOGGING_CONFIG override when present,
+# otherwise from the ConfigMap mounted by the bridged COO deployment.
+.PHONY: start-devspace-logging-backend
+start-devspace-logging-backend:
+	@features=$$(cat /opt/app-root/logging-config/features); \
+	acm_args=""; \
+	case ",$$features," in *,acm-alerting,*) acm_args="-alertmanager=https://alertmanager.open-cluster-management-observability.svc:9095 -thanos-querier=https://rbac-query-proxy.open-cluster-management-observability.svc:8443" ;; esac; \
+	if [ -f /opt/app-root/logging-config/config.yaml ]; then plugin_config=/opt/app-root/logging-config/config.yaml; else plugin_config=/etc/plugin/config/config.yaml; fi; \
+	GOCACHE=/opt/app-root/tmp/go-build-cache air -c /opt/app-root/.air.toml -- -port=9443 -cert=/var/serving-cert/tls.crt -key=/var/serving-cert/tls.key -static-path=/opt/app-root/web/dist -config-path=/opt/app-root/config -plugin-config-path="$$plugin_config" -features="$$features" $$acm_args
